@@ -8,17 +8,20 @@ import (
 	"google.golang.org/grpc"
 
 	/* module name is api, but might be confusing - use bfdapi instead */
-	bfdapi "bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/bfdapi"
+	bfdapi "bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/bfd-api"
+	bgpapi "bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/gobgp-api"
 	"bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/logging"
 )
 
 type InterconnectService struct {
-	config *Config
+	config    *Config
+	bgpClient bgpapi.GobgpApiClient
 }
 
 func NewInterconnectService(config *Config) *InterconnectService {
 	return &InterconnectService{
 		config,
+		nil,
 	}
 }
 
@@ -29,6 +32,7 @@ func (s *InterconnectService) Start() {
 		log.Errorf("failed to dial bfdd: %v", err)
 		return
 	}
+	defer bfdConn.Close()
 
 	bfdClient := bfdapi.NewBfdApiClient(bfdConn)
 	peers, err := listPeers(bfdClient)
@@ -36,6 +40,15 @@ func (s *InterconnectService) Start() {
 		log.Errorf("failed to list peers: %v", err)
 		return
 	}
+
+	bgpConn, err := grpc.DialContext(context.Background(), s.config.GobgpHost, grpc.WithInsecure())
+	if err != nil {
+		log.Errorf("failed to dial gobgpd: %v", err)
+		return
+	}
+	defer bgpConn.Close()
+
+	s.bgpClient = bgpapi.NewGobgpApiClient(bgpConn)
 
 	/*
 	 * Needed so that this goroutine won't return before
@@ -47,8 +60,8 @@ func (s *InterconnectService) Start() {
 	wg.Add(len(s.config.Peers))
 	defer wg.Wait()
 
-	for _, mapping := range s.config.Peers {
-		uuid := peers[mapping.BfdPeer]
+	for name := range s.config.Peers {
+		uuid := peers[name]
 
 		stream, err := bfdClient.MonitorPeer(
 			context.Background(),
@@ -62,7 +75,7 @@ func (s *InterconnectService) Start() {
 			return
 		}
 
-		go s.serviceEvents(mapping.BfdPeer, stream, &wg)
+		go s.serviceEvents(name, stream, &wg)
 	}
 }
 
@@ -81,11 +94,13 @@ func (s *InterconnectService) serviceEvents(
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			log.Errorf("%+v", err)
+			log.Errorf("failed to read bfd monitoring stream: %+v", err)
 			break
 		}
 
-		log.Infof("peer '%s' changed: %+v", name, response)
+		local := response.Local
+		log.Infof("bfd peer %s changed to %s", name, local.State.String())
+		s.handleBfdPeerStateChange(name, local)
 	}
 }
 
@@ -112,4 +127,30 @@ func listPeers(client bfdapi.BfdApiClient) (map[string][]byte, error) {
 	}
 
 	return peers, nil
+}
+
+/* Handles the transitioning for a GoBGP-peer according to the state change
+ * of its according bfd peer
+ */
+func (s *InterconnectService) handleBfdPeerStateChange(bfdName string, peerState *bfdapi.PeerState) {
+	bgpPeer := s.config.Peers[bfdName]
+
+	switch peerState.State {
+	case bfdapi.SessionState_ADMIN_DOWN:
+		fallthrough
+	case bfdapi.SessionState_DOWN:
+		s.bgpClient.DisablePeer(context.Background(), &bgpapi.DisablePeerRequest{
+			Address:       bgpPeer,
+			Communication: "disabled by bfd", /* doesn't seem to have any significant value to it */
+		})
+
+	case bfdapi.SessionState_UP:
+		s.bgpClient.EnablePeer(context.Background(), &bgpapi.EnablePeerRequest{
+			Address: bgpPeer,
+		})
+
+	default:
+		/* This only handles the INIT state, which does not really interest us */
+		log.Infof("ignoring session state change %s for peer %s", peerState.State.String(), bfdName)
+	}
 }

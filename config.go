@@ -8,20 +8,15 @@ import (
 )
 
 type Config struct {
-	BfdHost   string        `yaml:"bfd-host"`
-	GobgpHost string        `yaml:"gobgp-host"`
-	Peers     []PeerMapping `yaml:"peers"`
-	Logging   LoggingConfig `yaml:"logging"`
-}
-
-type PeerMapping struct {
-	BfdPeer string `yaml:"bfd"`
-	BgpPeer string `yaml:"bgp"`
+	BfdHost   string            `yaml:"bfd-host"`
+	GobgpHost string            `yaml:"gobgp-host"`
+	Peers     map[string]string `yaml:"peers"`
+	Logging   LoggingConfig     `yaml:"logging"`
 }
 
 type LoggingConfig struct {
 	Logfile     string `yaml:"logfile"`
-	LogToStdout bool   `yaml:"log_also_to_stdout"`
+	LogToStdout bool   `yaml:"log-also-to-stdout"`
 }
 
 func LoadConfig(path string) (*Config, error) {

@@ -13,12 +13,15 @@ To get started, simply type `dep ensure`
 Sample config:
 
 ```
-bfd-host: localhost:54211
-gobgp-host: localhost:50051
+logging:
+  logfile: interconnector.log
+  log-also-to-stdout: False
+
+bfd-host: 172.17.0.2:54211
+gobgp-host: 172.17.0.3:50051
 
 peers:
-  - bfd: peer1   # Name of peer as specified in bfdd-config
-    bgp: 10.0.255.1
-  - bfd: peer2
-    bgp: 10.0.255.2
+  # bfd-peer: bgp-peer
+  - peer1: 10.0.255.1   # Name of peer as specified in bfdd-config
+  - peer2: 10.0.255.2
 ```

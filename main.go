@@ -27,6 +27,7 @@ func main() {
 	service := NewInterconnectService(config)
 	go service.Start()
 
+	/* Make server killable by ^C */
 	chanClose := make(chan os.Signal)
 	signal.Notify(chanClose, syscall.SIGINT, syscall.SIGTERM)
 
