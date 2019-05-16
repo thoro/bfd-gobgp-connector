@@ -10,9 +10,9 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	/* module name is api, but might be confusing - use bfdapi instead */
-	bfdapi "bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/bfd-api"
-	bgpapi "bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/gobgp-api"
-	"bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/logging"
+	bfdapi "github.com/Thoro/bfd-gobgp-connector/bfd-api"
+	bgpapi "github.com/Thoro/bfd-gobgp-connector/gobgp-api"
+	"github.com/Thoro/bfd-gobgp-connector/logging"
 )
 
 type InterconnectService struct {
@@ -172,7 +172,6 @@ func (s *InterconnectService) newGrpcConnection(server ServerConfig) (*grpc.Clie
 		} else {
 			var err error
 
-			log.Infof("%s", server.Tls.CertFile)
 			creds, err = credentials.NewClientTLSFromFile(server.Tls.CertFile, "")
 			if err != nil {
 				return nil, nil, err

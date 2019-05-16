@@ -25,3 +25,7 @@ peers:
   - peer1: 10.0.255.1   # Name of peer as specified in bfdd-config
   - peer2: 10.0.255.2
 ```
+
+### License
+
+[MIT](LICENSE)

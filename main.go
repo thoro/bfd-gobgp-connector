@@ -7,14 +7,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/logging"
+	"github.com/Thoro/bfd-gobgp-connector/logging"
 )
 
 func main() {
 	configPath := ""
 
 	cmd := &cobra.Command{
-		Use: "gobgpd-bfdd-interconnector",
+		Use: "bfd-gobgp-connector",
 		Run: func(_ *cobra.Command, _ []string) {
 			runService(configPath)
 		},
