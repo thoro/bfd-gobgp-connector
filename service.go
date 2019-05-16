@@ -4,8 +4,10 @@ import (
 	"context"
 	"io"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	/* module name is api, but might be confusing - use bfdapi instead */
 	bfdapi "bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/bfd-api"
@@ -26,8 +28,9 @@ func NewInterconnectService(config *Config) *InterconnectService {
 }
 
 func (s *InterconnectService) Start() {
-	// TODO: should probably use TLS
-	bfdConn, err := grpc.DialContext(context.Background(), s.config.BfdHost, grpc.WithInsecure())
+	bfdConn, cancel, err := s.newGrpcConnection(s.config.Bfd)
+	defer cancel()
+
 	if err != nil {
 		log.Errorf("failed to dial bfdd: %v", err)
 		return
@@ -41,9 +44,12 @@ func (s *InterconnectService) Start() {
 		return
 	}
 
-	bgpConn, err := grpc.DialContext(context.Background(), s.config.GobgpHost, grpc.WithInsecure())
+	bgpConn, cancel, err := s.newGrpcConnection(s.config.Gobgp)
+	defer cancel()
+
 	if err != nil {
 		log.Errorf("failed to dial gobgpd: %v", err)
+		cancel()
 		return
 	}
 	defer bgpConn.Close()
@@ -153,4 +159,36 @@ func (s *InterconnectService) handleBfdPeerStateChange(bfdName string, peerState
 		/* This only handles the INIT state, which does not really interest us */
 		log.Infof("ignoring session state change %s for peer %s", peerState.State.String(), bfdName)
 	}
+}
+
+func (s *InterconnectService) newGrpcConnection(server ServerConfig) (*grpc.ClientConn, context.CancelFunc, error) {
+	options := []grpc.DialOption{grpc.WithBlock()}
+
+	if server.Tls.Enable {
+		var creds credentials.TransportCredentials
+
+		if server.Tls.CertFile == "" {
+			creds = credentials.NewClientTLSFromCert(nil, "")
+		} else {
+			var err error
+
+			log.Infof("%s", server.Tls.CertFile)
+			creds, err = credentials.NewClientTLSFromFile(server.Tls.CertFile, "")
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+
+		options = append(options, grpc.WithTransportCredentials(creds))
+	} else {
+		options = append(options, grpc.WithInsecure())
+	}
+
+	context, cancel := context.WithTimeout(context.Background(), time.Second)
+	conn, err := grpc.DialContext(context, server.Host, options...)
+	if err != nil {
+		return nil, cancel, err
+	}
+
+	return conn, cancel, nil
 }

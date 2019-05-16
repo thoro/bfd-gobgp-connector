@@ -5,12 +5,27 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+
 	"bitbucket.cf-it.at/creamfinance/gobgpd-bfdd-interconnect/logging"
 )
 
 func main() {
-	// TODO: Enable different config files with -c parameter
-	config, err := LoadConfig("")
+	configPath := ""
+
+	cmd := &cobra.Command{
+		Use: "gobgpd-bfdd-interconnector",
+		Run: func(_ *cobra.Command, _ []string) {
+			runService(configPath)
+		},
+	}
+
+	cmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to config file")
+	cmd.Execute()
+}
+
+func runService(configPath string) {
+	config, err := LoadConfig(configPath)
 	if err != nil {
 		panic(err)
 	}
@@ -22,9 +37,9 @@ func main() {
 	}
 	log.SetLogToStdout(config.Logging.LogToStdout)
 
-	log.Infof("Starting server, quit using Ctrl+C")
-
 	service := NewInterconnectService(config)
+
+	log.Infof("Starting server, quit using Ctrl+C")
 	go service.Start()
 
 	/* Make server killable by ^C */

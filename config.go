@@ -8,10 +8,20 @@ import (
 )
 
 type Config struct {
-	BfdHost   string            `yaml:"bfd-host"`
-	GobgpHost string            `yaml:"gobgp-host"`
-	Peers     map[string]string `yaml:"peers"`
-	Logging   LoggingConfig     `yaml:"logging"`
+	Bfd     ServerConfig      `yaml:"bfd"`
+	Gobgp   ServerConfig      `yaml:"gobgp"`
+	Peers   map[string]string `yaml:"peers"`
+	Logging LoggingConfig     `yaml:"logging"`
+}
+
+type ServerConfig struct {
+	Host string    `yaml:"host"`
+	Tls  TlsConfig `yaml:"tls,omitempty"`
+}
+
+type TlsConfig struct {
+	Enable   bool   `yaml:"enable"`
+	CertFile string `yaml:"cert"`
 }
 
 type LoggingConfig struct {
